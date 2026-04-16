@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Turnos</title>
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/3652/3652191.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0b0e0f;
+            --card-bg: #161a1d;
+            --accent-green: #2ecc71;
+            --accent-blue: #3498db;
+            --text-high: #f8fafc;
+            --text-low: #94a3b8;
+            --border: #2d3436;
+            --danger: #ff4757;
+            --modal-overlay: rgba(0, 0, 0, 0.9);
+            --day-bg: #1c2125;
+            --highlight: rgba(46, 204, 113, 0.15);
+        }
+        [data-theme="light"] {
+            --bg-main: #f1f5f9;
+            --card-bg: #ffffff;
+            --accent-green: #15803d;
+            --accent-blue: #2980b9;
+            --text-high: #0f172a;
+            --text-low: #64748b;
+            --border: #e2e8f0;
+            --day-bg: #f8fafc;
+            --highlight: rgba(21, 128, 61, 0.1);
+        }
+
+        body { font-family: 'Inter', sans-serif; background: var(--bg-main); color: var(--text-high); margin: 0; padding: 10px; transition: 0.3s; display: flex; flex-direction: column; min-height: 100vh; }
+        .container { max-width: 1000px; margin: auto; flex: 1; width: 100%; box-sizing: border-box; }
+
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        h1 { font-size: 0.85rem; color: var(--accent-green); text-transform: uppercase; letter-spacing: 1px; margin: 0; }
+
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .btn-master { background: var(--accent-green); color: white; border: none; padding: 12px; border-radius: 12px; font-size: 0.65rem; font-weight: 800; cursor: pointer; text-transform: uppercase; flex: 1; transition: transform 0.2s; }
+        .btn-master:active { transform: scale(0.98); }
+        
+        .filter-select { 
+            background: var(--card-bg); 
+            color: var(--text-high); 
+            border: 1px solid var(--border); 
+            padding: 12px; 
+            border-radius: 12px; 
+            font-size: 0.65rem; 
+            flex: 1; 
+            font-weight: 600; 
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px;
+            padding-right: 35px;
+        }
+
+        .category-title { font-size: 0.65rem; color: var(--text-low); text-transform: uppercase; margin: 25px 0 12px 0; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .category-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+        
+        .staff-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        .staff-card { 
+            background: var(--card-bg); 
+            padding: 15px; 
+            border-radius: 15px; 
+            border: 1px solid var(--border); 
+            cursor: pointer; 
+            transition: all 0.3s ease;
+            animation: fadeIn 0.5s ease backwards;
+        }
+        .staff-card:hover { transform: translateY(-3px); border-color: var(--accent-green); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; position: relative; vertical-align: middle; }
+        .dot-green { background: var(--accent-green); }
+        .dot-blue { background: var(--accent-blue); }
+
+        .dot-green::after {
+            content: "";
+            position: absolute; width: 100%; height: 100%;
+            background: var(--accent-green); border-radius: 50%;
+            left: 0; top: 0; animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+
+        .slider-wrapper { position: relative; width: 100%; margin-top: 40px; display: flex; align-items: center; }
+        .slider-container { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; width: 100%; scroll-behavior: smooth; }
+        .slider-container::-webkit-scrollbar { display: none; }
+        .slide-view { min-width: 100%; scroll-snap-align: start; flex-shrink: 0; box-sizing: border-box; padding: 0 10px; }
+        
+        /* Ocultar flechas en dispositivos táctiles */
+        .nav-btn { background: transparent; border: none; color: var(--text-high); width: 40px; height: 40px; cursor: pointer; font-size: 1.2rem; opacity: 0.3; transition: 0.3s; z-index: 10; }
+        @media (hover: none) and (pointer: coarse) {
+            .nav-btn { display: none; }
+        }
+        .nav-btn:hover { opacity: 1; color: var(--accent-green); }
+
+        .shift-item { background: var(--card-bg); padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); border-left: 5px solid transparent; transition: 0.3s; }
+        .shift-item:hover { transform: translateX(5px); }
+        .border-green { border-left-color: var(--accent-green); }
+        .border-blue { border-left-color: var(--accent-blue); }
+
+        .modal { display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background: var(--modal-overlay); backdrop-filter: blur(8px); animation: fadeIn 0.3s; }
+        .modal-content { max-width: 500px; margin: 20px auto; background: var(--card-bg); border-radius: 25px; padding: 20px; position: relative; border: 1px solid var(--border); width: 92%; max-height: 90vh; overflow-y: auto; }
+        .close-btn { position: absolute; right: 15px; top: 15px; width: 30px; height: 30px; background: rgba(255, 71, 87, 0.1); color: var(--danger); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; }
+
+        #nightBreakdown {
+            display: none;
+            background: rgba(52, 152, 219, 0.05);
+            border: 1px dashed var(--accent-blue);
+            border-radius: 15px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 0.65rem;
+        }
+        .night-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .q-title { color: var(--text-high); font-weight: 800; font-size: 0.75rem; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+        .night-day-row { display: flex; justify-content: space-between; color: var(--text-low); margin-bottom: 2px; }
+
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 15px; }
+        .cal-header-day { font-size: 0.55rem; color: #ffffff; font-weight: 800; text-align: center; padding-bottom: 8px; text-transform: uppercase; }
+        .cal-day { background: var(--day-bg); padding: 10px 2px; text-align: center; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; min-height: 60px; justify-content: center; transition: 0.2s; }
+        .cal-day:hover { border-color: var(--accent-green); background: var(--highlight); }
+        .day-num { font-size: 0.7rem; font-weight: 800; margin-bottom: 4px; color: var(--text-high); }
+        .day-shift { font-size: 0.45rem; font-weight: 700; line-height: 1.2; text-transform: uppercase; }
+
+        .table-wrapper { overflow-x: auto; border-radius: 15px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.5rem; }
+        th, td { border: 1px solid var(--border); padding: 10px 5px; text-align: center; transition: background 0.2s; }
+        .sticky-col { position: sticky; left: 0; background: var(--card-bg); z-index: 5; font-weight: 800; min-width: 100px; text-align: left; padding-left: 10px; cursor: pointer; }
+        
+        /* Estilo para resaltar fila */
+        .row-highlight { background-color: var(--highlight) !important; }
+        .row-highlight .sticky-col { background-color: var(--accent-green) !important; color: white !important; }
+
+        footer { text-align: center; padding: 20px; font-size: 0.6rem; color: var(--text-low); border-top: 1px solid var(--border); margin-top: 40px; letter-spacing: 1px; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1 id="monthTitle">TELEMEDICINA ABRIL 2026</h1>
+            <div id="dateNow" style="font-size: 0.65rem; color: var(--text-low); font-weight: 700;"></div>
+        </div>
+        <button onclick="toggleTheme()" id="themeBtn" style="background:var(--card-bg); border:1px solid var(--border); cursor:pointer; padding:8px; border-radius:10px;">🌙</button>
+    </header>
+
+    <div class="controls">
+        <button class="btn-master" onclick="openMonthlyView()">Calendario General</button>
+        <select id="roleFilter" class="filter-select" onchange="renderApp()">
+            <option value="ALL">TODOS LOS ROLES</option>
+            <option value="TÉCNICO OPERADOR MONITOREO">TÉCNICOS</option>
+            <option value="ANALISTA DE COMPORTAMIENTO">ANALISTAS</option>
+        </select>
+    </div>
+
+    <div id="gridsContainer">
+        <div class="category-title" style="color: var(--accent-green)"><div class="status-dot dot-green"></div> Turno Actual</div>
+        <div class="staff-grid" id="gridActive"></div>
+        <div class="category-title" style="color: var(--accent-blue)"><div class="status-dot dot-blue"></div> Próximos Hoy</div>
+        <div class="staff-grid" id="gridUpcoming"></div>
+        <div class="category-title">Descanso</div>
+        <div class="staff-grid" id="gridRest"></div>
+    </div>
+
+    <div class="slider-wrapper">
+        <button class="nav-btn" onclick="moveSlider(-1); resetAutoSlider();">&#10094;</button>
+        <div class="slider-container" id="mainSlider">
+            <div class="slide-view">
+                <div style="font-size:0.7rem; font-weight:800; margin-bottom:15px; color:var(--text-high); text-align:center; letter-spacing:1px;">DETALLES DE HOY</div>
+                <div id="listTodayCombined"></div>
+            </div>
+            <div class="slide-view">
+                <div style="font-size:0.7rem; font-weight:800; margin-bottom:15px; color:var(--accent-blue); text-align:center; letter-spacing:1px;">PROGRAMACIÓN MAÑANA</div>
+                <div id="listTomorrow"></div>
+            </div>
+        </div>
+        <button class="nav-btn" onclick="moveSlider(1); resetAutoSlider();">&#10095;</button>
+    </div>
+</div>
+
+<footer>
+   Built with 💻 and 🧠 by Jose Rojas & Esaù Aguilar(QA) | © 2026
+</footer>
+
+<div id="calModal" class="modal" onclick="closeModals()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <span class="close-btn" onclick="closeModals()">&times;</span>
+        <div onclick="toggleNightBreakdown()" style="cursor:pointer">
+            <h2 id="mName" style="color:var(--accent-green); margin:0; font-size:1.1rem;"></h2>
+            <p id="mRole" style="font-size:0.6rem; color:var(--text-low); text-transform:uppercase; margin-bottom:10px;"></p>
+        </div>
+
+        <div id="nightBreakdown">
+            <div style="color:var(--accent-blue); font-weight:800; margin-bottom:10px; text-transform:uppercase; font-size:0.6rem;">Desglose Nocturno (19:00 - 06:00)</div>
+            <div class="night-grid">
+                <div>
+                    <div class="q-title" id="q1Total">Q1: 0.0 hrs</div>
+                    <div id="q1List"></div>
+                </div>
+                <div>
+                    <div class="q-title" id="q2Total">Q2: 0.0 hrs</div>
+                    <div id="q2List"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cal-grid" id="calHeader" style="margin-bottom: 0;"></div>
+        <div class="cal-grid" id="calDays" style="margin-top: 0;"></div>
+    </div>
+</div>
+
+<div id="monthlyModal" class="modal" onclick="closeModals()">
+    <div class="modal-content" style="max-width: 95%" onclick="event.stopPropagation()">
+        <span class="close-btn" onclick="closeModals()">&times;</span>
+        <h2 style="color:var(--accent-green); font-size:0.9rem; margin-bottom:15px;">VISTA GENERAL - ABRIL (Haz clic en un nombre para resaltar)</h2>
+        <div class="table-wrapper">
+            <table id="monthlyTable">
+                <thead id="tHead"></thead>
+                <tbody id="tBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const staff = [
+        { name: "GERALD MOLINA", role: "TÉCNICO OPERADOR MONITOREO", days: ["06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 02:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 02:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 02:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 02:00 P.M.", "Descanso", "06:00 A.M. - 12:00 P.M.", "06:00 A.M. - 02:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 02:00 P.M.", "Descanso", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso"] },
+        { name: "KATHERINE MARTINEZ", role: "ANALISTA DE COMPORTAMIENTO", days: ["Descanso", "Descanso", "Descanso", "Descanso", "Descanso", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "Descanso", "Descanso", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 05:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "Descanso", "Descanso", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "Descanso", "Descanso", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M."] },
+        { name: "JOSE ROJAS", role: "TÉCNICO OPERADOR MONITOREO", days: ["12:00 P.M. - 09:00 P.M.", "Descanso", "01:00 P.M. - 09:00 P.M.", "Descanso", "02:00 P.M. - 10:00 P.M.", "12:00 P.M. - 09:00 P.M.", "Descanso", "01:00 P.M. - 09:00 P.M.", "12:00 P.M. - 09:00 P.M.", "02:00 P.M. - 09:00 P.M.", "02:00 P.M. - 10:00 P.M.", "Descanso", "01:00 P.M. - 09:00 P.M.", "Descanso", "01:00 P.M. - 09:00 P.M.", "01:00 P.M. - 09:00 P.M.", "02:00 P.M. - 09:00 P.M.", "Descanso", "02:00 P.M. - 10:00 P.M.", "12:00 P.M. - 09:00 P.M.", "Descanso", "12:00 P.M. - 08:00 P.M.", "12:00 P.M. - 09:00 P.M.", "02:00 P.M. - 09:00 P.M.", "Descanso", "02:00 P.M. - 10:00 P.M.", "12:00 P.M. - 09:00 P.M.", "Descanso", "12:00 P.M. - 08:00 P.M.", "12:00 P.M. - 09:00 P.M."] },
+        { name: "ESAÚ AGUILAR", role: "TÉCNICO OPERADOR MONITOREO", days: ["01:00 P.M. - 10:00 P.M.", "01:00 P.M. - 10:00 P.M.", "Descanso", "01:00 P.M. - 10:00 P.M.", "Descanso", "03:00 P.M. - 11:00 P.M.", "03:00 P.M. - 11:00 P.M.", "03:00 P.M. - 11:00 P.M.", "Descanso", "03:00 P.M. - 11:00 P.M.", "Descanso", "02:00 P.M. - 10:00 P.M.", "03:00 P.M. - 11:00 P.M.", "01:00 P.M. - 10:00 P.M.", "03:00 P.M. - 11:00 P.M.", "Descanso", "02:00 P.M. - 10:00 P.M.", "02:00 P.M. - 10:00 P.M.", "Descanso", "03:00 P.M. - 11:00 P.M.", "03:00 P.M. - 11:00 P.M.", "03:00 P.M. - 11:00 P.M.", "Descanso", "03:00 P.M. - 11:00 P.M.", "02:00 P.M. - 10:00 P.M.", "Descanso", "03:00 P.M. - 11:00 P.M.", "03:00 P.M. - 11:00 P.M.", "03:00 P.M. - 11:00 P.M.", "Descanso"] },
+        { name: "EDER LÓPEZ", role: "TÉCNICO OPERADOR MONITOREO", days: ["07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "Descanso", "Descanso", "Descanso", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "Descanso", "Descanso", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "Descanso", "Descanso", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "Descanso", "Descanso", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M.", "07:00 A.M. - 04:00 P.M."] },
+        { name: "JASON HERNÁNDEZ", role: "TÉCNICO OPERADOR MONITOREO", days: ["06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso", "Descanso", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 12:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 02:00 P.M.", "06:00 A.M. - 03:00 P.M.", "06:00 A.M. - 03:00 P.M.", "Descanso", "06:00 A.M. - 03:00 P.M."] },
+{ 
+  name: "EDYS TORRES", 
+  role: "TÉCNICO OPERADOR MONITOREO", 
+  days: ["Descanso", "Descanso", "Descanso", "Descanso", "Descanso", "07:00 A.M. - 07:00 P.M.", "08:00 A.M. - 08:00 P.M.", "Descanso", "08:00 A.M. - 05:00 P.M.", "Descanso", "06:00 A.M. - 04:00 P.M.", "Descanso", "07:00 A.M. - 05:00 P.M.", "07:00 A.M. - 05:00 P.M.", "07:00 A.M. - 05:00 P.M.", "08:00 A.M. - 05:00 P.M.", "Descanso", "07:00 A.M. - 04:00 P.M.", "Descanso", "08:00 A.M. - 05:00 P.M.", "08:00 A.M. - 05:00 P.M.", "08:00 A.M. - 05:00 P.M.", "08:00 A.M. - 05:00 P.M.", "Descanso", "07:00 A.M. - 04:00 P.M.", "Descanso", "08:00 A.M. - 05:00 P.M.", "08:00 A.M. - 05:00 P.M.", "08:00 A.M. - 05:00 P.M.", "08:00 A.M. - 05:00 P.M."] 
+},
+        { name: "JOSE GUTIERREZ", role: "TÉCNICO OPERADOR MONITOREO", days: ["Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 05:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 05:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 05:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 05:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 05:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 05:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M."] },
+        { name: "LUIS ARTIGA", role: "TÉCNICO OPERADOR MONITOREO", days: ["10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 05:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 05:00 A.M.", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 05:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 05:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 05:00 A.M.", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 06:00 A.M.", "10:00 P.M. - 06:00 A.M.", "Descanso", "10:00 P.M. - 05:00 A.M."] },
+        { name: "ESTHEFANY VILLALTA", role: "ANALISTA DE COMPORTAMIENTO", days: ["Descanso", "Descanso", "Descanso", "Descanso", "Descanso", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "Descanso", "Descanso", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "10:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "Descanso", "Descanso", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "Descanso", "Descanso", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M.", "11:00 A.M. - 08:00 P.M."] }
+    ];
+
+    const restEmojis = ["🏖️", "🎮", "🛌", "🏠", "🍕", "🍿", "🌳", "🌊", "📺", "🚲"];
+    function getRandomEmoji() { return restEmojis[Math.floor(Math.random() * restEmojis.length)]; }
+
+    function parseTime(t) {
+        if(!t || t === "Descanso") return null;
+        let [time, mod] = t.split(' ');
+        let [h, m] = time.split(':');
+        h = parseInt(h);
+        if(h === 12) h = (mod === "A.M.") ? 0 : 12;
+        else if(mod === "P.M.") h += 12;
+        return h + (parseInt(m)/60);
+    }
+
+    function getNightHours(shiftStr) {
+        if (!shiftStr || shiftStr === "Descanso") return 0;
+        const parts = shiftStr.split(' - ');
+        let start = parseTime(parts[0]);
+        let end = parseTime(parts[1]);
+        let hours = 0;
+        const step = 0.5;
+        const totalDuration = end < start ? (24 - start + end) : (end - start);
+        for (let i = 0; i < totalDuration; i += step) {
+            let hourCheck = (start + i) % 24;
+            if (hourCheck >= 19 || hourCheck < 6) hours += step;
+        }
+        return hours;
+    }
+
+    function isNow(s) {
+        if(!s || s === "Descanso") return false;
+        const now = new Date(), cur = now.getHours() + (now.getMinutes()/60);
+        const parts = s.split(' - ');
+        const st = parseTime(parts[0]), en = parseTime(parts[1]);
+        return en < st ? (cur >= st || cur <= en) : (cur >= st && cur <= en);
+    }
+
+    function isUp(s) {
+        if(!s || s === "Descanso") return false;
+        const cur = new Date().getHours() + (new Date().getMinutes()/60);
+        return parseTime(s.split(' - ')[0]) > cur;
+    }
+
+    function getAdjustedDayIndex() {
+        const now = new Date();
+        const hour = now.getHours();
+        let day = now.getDate();
+        if (hour >= 0 && hour < 6) day = day - 1;
+        return Math.max(0, day - 1);
+    }
+
+    function renderApp() {
+        const filter = document.getElementById('roleFilter').value;
+        const grids = { act: document.getElementById('gridActive'), up: document.getElementById('gridUpcoming'), rest: document.getElementById('gridRest') };
+        const listCombined = document.getElementById('listTodayCombined'), listTomorrow = document.getElementById('listTomorrow');
+        Object.values(grids).forEach(g => g.innerHTML = '');
+        listCombined.innerHTML = ''; listTomorrow.innerHTML = '';
+
+        const dayIdx = getAdjustedDayIndex();
+        const tomIdx = (dayIdx + 1) % 30;
+
+        let htmlActive = '', htmlUpcoming = '', staffTomorrow = [];
+
+        staff.forEach((p, idx) => {
+            if(filter !== "ALL" && p.role !== filter) return;
+            const shift = p.days[dayIdx];
+            const active = isNow(shift), upcoming = isUp(shift), rest = shift === "Descanso";
+            let target = grids.rest, dotClass = '';
+            if(active) { dotClass = 'dot-green'; target = grids.act; }
+            else if(upcoming) { dotClass = 'dot-blue'; target = grids.up; }
+
+            target.innerHTML += `<div class="staff-card" style="animation-delay: ${idx * 0.05}s" onclick="openIndividual(${idx})">
+                <div style="font-size:0.75rem; font-weight:800; display:flex; align-items:center;">
+                    ${dotClass ? `<div class="status-dot ${dotClass}"></div>` : ''} 
+                    ${p.name} ${rest ? `<span style="margin-left:5px">${getRandomEmoji()}</span>` : ''}
+                </div>
+                <div style="font-size:0.4rem; color:var(--text-low); margin-top:5px; font-weight:700">${p.role}</div>
+            </div>`;
+
+            const itemHtml = `
+            <div class="shift-item ${active ? 'border-green' : 'border-blue'}">
+                <div style="display:flex; align-items:center;">
+                    <div class="status-dot ${active ? 'dot-green' : 'dot-blue'}"></div>
+                    <div><div style="font-weight:800; font-size:0.8rem">${p.name}</div><div style="font-size:0.45rem; color:var(--text-low); font-weight:600">${p.role}</div></div>
+                </div>
+                <div style="font-weight:800; color:${active ? 'var(--accent-green)' : 'var(--accent-blue)'}; font-size:0.7rem">${shift}</div>
+            </div>`;
+            if(active) htmlActive += itemHtml; else if(upcoming) htmlUpcoming += itemHtml;
+
+            const shiftTom = p.days[tomIdx];
+            if(shiftTom !== "Descanso") staffTomorrow.push({ name: p.name, role: p.role, shift: shiftTom, timeVal: parseTime(shiftTom.split(' - ')[0]) });
+        });
+
+        if(htmlActive) listCombined.innerHTML += `<div class="category-title" style="color: var(--accent-green); margin-top: 10px;"><div class="status-dot dot-green"></div> Turno Actual</div>` + htmlActive;
+        if(htmlUpcoming) listCombined.innerHTML += `<div class="category-title" style="color: var(--accent-blue); margin-top: 20px;"><div class="status-dot dot-blue"></div> Próximos Hoy</div>` + htmlUpcoming;
+
+        staffTomorrow.sort((a, b) => a.timeVal - b.timeVal).forEach(p => {
+            listTomorrow.innerHTML += `
+            <div class="shift-item border-blue">
+                <div style="display:flex; align-items:center;"><div class="status-dot dot-blue"></div>
+                <div><div style="font-weight:800; font-size:0.8rem">${p.name}</div><div style="font-size:0.45rem; color:var(--text-low); font-weight:600">${p.role}</div></div></div>
+                <div style="font-weight:800; color:var(--accent-blue); font-size:0.7rem">${p.shift}</div>
+            </div>`;
+        });
+    }
+
+    function toggleNightBreakdown() {
+        const panel = document.getElementById('nightBreakdown');
+        panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function openIndividual(idx) {
+        const p = staff[idx];
+        const labels = ["LU", "MA", "MI", "JU", "VI", "SA", "DO"];
+        document.getElementById('mName').innerText = p.name;
+        document.getElementById('mRole').innerText = p.role;
+        document.getElementById('nightBreakdown').style.display = 'none';
+
+        let q1Total = 0, q2Total = 0, q1Html = '', q2Html = '';
+        p.days.forEach((s, i) => {
+            const h = getNightHours(s), dayNum = i + 1;
+            if (h > 0) {
+                const row = `<div class="night-day-row"><span>Día ${dayNum}:</span> <span>${h.toFixed(1)}h</span></div>`;
+                if (dayNum <= 15) { q1Total += h; q1Html += row; } else { q2Total += h; q2Html += row; }
+            }
+        });
+
+        document.getElementById('q1Total').innerText = `Q1: ${q1Total.toFixed(1)} hrs`;
+        document.getElementById('q1List').innerHTML = q1Html || '<div style="color:var(--text-low); font-style:italic">Sin horas</div>';
+        document.getElementById('q2Total').innerText = `Q2: ${q2Total.toFixed(1)} hrs`;
+        document.getElementById('q2List').innerHTML = q2Html || '<div style="color:var(--text-low); font-style:italic">Sin horas</div>';
+
+        const header = document.getElementById('calHeader'), container = document.getElementById('calDays');
+        header.innerHTML = ''; container.innerHTML = '';
+        const startOffset = 2; 
+        for(let i=0; i<7; i++) header.innerHTML += `<div class="cal-header-day">${labels[i]}</div>`;
+        for(let i=0; i<startOffset; i++) container.innerHTML += `<div></div>`;
+        
+        p.days.forEach((s, i) => {
+            const isR = s === "Descanso", isToday = (i+1) === new Date().getDate();
+            container.innerHTML += `<div class="cal-day" style="border-color:${isToday ? 'var(--accent-green)' : 'var(--border)'}">
+                <div class="day-num">${i+1}</div>
+                <div class="day-shift" style="color:${isR?'var(--text-low)':'var(--accent-green)'}">${isR ? `${getRandomEmoji()}<br>DESC` : s.replace(' - ', '<br>')}</div>
+            </div>`;
+        });
+        document.getElementById('calModal').style.display = 'block';
+    }
+
+    function openMonthlyView() {
+        const filter = document.getElementById('roleFilter').value;
+        const head = document.getElementById('tHead'), body = document.getElementById('tBody');
+        const labels = ["LU", "MA", "MI", "JU", "VI", "SA", "DO"];
+        let h1 = `<tr><th class="sticky-col">PERSONAL</th>`, h2 = `<tr><th class="sticky-col">ABRIL</th>`;
+        for(let i=1; i<=30; i++) { h1 += `<th>${labels[(i-1+2)%7]}</th>`; h2 += `<th>${i}</th>`; }
+        head.innerHTML = h1 + "</tr>" + h2 + "</tr>";
+        body.innerHTML = '';
+        staff.forEach(p => {
+            if(filter !== "ALL" && p.role !== filter) return;
+            let row = `<tr id="row-${p.name.replace(/\s+/g, '')}"><td class="sticky-col" onclick="toggleHighlightRow('${p.name.replace(/\s+/g, '')}')">${p.name}<br><span style="font-size:0.35rem; color:var(--text-low); font-weight:normal;">${p.role}</span></td>`;
+            p.days.forEach(s => { row += `<td style="color:${s==='Descanso'?'var(--text-low)':'var(--accent-green)'}; font-weight:800">${s==='Descanso'?'DESC':s.replace(' - ','<br>')}</td>`; });
+            body.innerHTML += row + "</tr>";
+        });
+        document.getElementById('monthlyModal').style.display = 'block';
+    }
+
+    // Función para sombrear/desombrear filas
+    function toggleHighlightRow(id) {
+        const row = document.getElementById('row-' + id);
+        row.classList.toggle('row-highlight');
+    }
+
+    function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+    
+    function toggleTheme() {
+        const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        document.getElementById('themeBtn').innerText = next === 'light' ? '☀️' : '🌙';
+    }
+
+    function moveSlider(direction) {
+        const slider = document.getElementById('mainSlider');
+        slider.scrollBy({ left: direction * slider.clientWidth, behavior: 'smooth' });
+    }
+
+    let autoSlider = setInterval(() => moveSlider(1), 5000);
+    function resetAutoSlider() { clearInterval(autoSlider); autoSlider = setInterval(() => moveSlider(1), 5000); }
+
+    document.getElementById('dateNow').innerText = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    renderApp();
+</script>
+
+</body>
+</html>
